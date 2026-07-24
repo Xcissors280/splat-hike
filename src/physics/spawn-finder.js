@@ -44,6 +44,35 @@ function hasSideClearance(collider, x, y, z, radius) {
   return true;
 }
 
+// hasSideClearance's 0.45-unit ring only catches being wedged directly
+// against something touching the capsule — every candidate that passed it
+// was still landing wrapped in dense foliage with zero visible open space
+// in any direction (confirmed by direct pixel sampling, not guesswork).
+// This finds the most open of 8 directions at eye height: a real clearing
+// only needs ONE open direction, not all of them — real terrain legitimately
+// has bushes/rocks nearby in most directions even at a genuinely good spot.
+// Returns { yaw, dist } for the best direction (dist is how far it stayed
+// clear, capped at maxDist), or null if every direction is blocked almost
+// immediately. yaw matches main.js's convention: forward = (-sin(yaw), -cos(yaw)).
+function findOpenDirection(collider, x, y, z, maxDist, step) {
+  const rays = 8;
+  let best = null;
+  for (let i = 0; i < rays; i++) {
+    const a = (i / rays) * Math.PI * 2;
+    const dx = Math.cos(a), dz = Math.sin(a);
+    let dist = 0;
+    for (let d = step; d <= maxDist; d += step) {
+      if (collider.occupied(x + dx * d, y, z + dz * d)) break;
+      dist = d;
+    }
+    if (!best || dist > best.dist) {
+      const yaw = Math.atan2(-dx, -dz) * (180 / Math.PI);
+      best = { yaw, dist };
+    }
+  }
+  return best;
+}
+
 // 8 points evenly spaced around a ring at the given radius index.
 function ringOffsets(ring, count) {
   const pts = [];
@@ -62,9 +91,16 @@ function ringSearch(collider, cx, cz, bounds) {
   const fullDrop = (bounds.maxY - bounds.minY) + 2;
   const searchFrom = bounds.maxY + 1;
   const ringStep = Math.max(Math.min(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ) * 0.06, 0.5);
+  // Scale-relative, same reasoning as ringStep itself (see main.js's
+  // currentSceneScale comment) — these community scans have wildly
+  // inconsistent coordinate units, so a fixed-meter distance would be
+  // trivial on a huge-scale scan and enormous on a tiny one.
+  const sightlineDist = Math.max(ringStep * 3, 1.5);
+  const sightlineStep = Math.max(ringStep * 0.3, 0.15);
 
   let bestAny = null;
   let bestClear = null;
+  let bestOpen = null;
 
   for (let ring = 0; ring < 10; ring++) {
     const points = ring === 0 ? [[0, 0]] : ringOffsets(ring, 8);
@@ -73,15 +109,23 @@ function ringSearch(collider, cx, cz, bounds) {
       const z = cz + oz * ringStep;
       const ground = collider.robustGroundHeight(x, searchFrom, z, fullDrop);
       if (ground === null) continue;
-      const candidate = { x, y: ground + 0.05, z };
+      const eyeY = ground + 1.65;
+      // Always face whichever direction is most open, even for a fallback
+      // candidate that doesn't clear every bar — facing the one clear-ish
+      // direction beats facing a hardcoded default that might be a wall.
+      const direction = findOpenDirection(collider, x, eyeY, z, sightlineDist, sightlineStep);
+      const candidate = direction ? { x, y: ground + 0.05, z, yaw: direction.yaw } : { x, y: ground + 0.05, z };
       if (!bestAny) bestAny = candidate;
       const clear = hasHeadroom(collider, x, ground + 0.05, z, 1.9)
         && hasSideClearance(collider, x, ground + 0.05, z, 0.45);
       if (clear && !bestClear) bestClear = candidate;
-      if (clear && isSupported(collider, x, ground, z)) return { found: candidate, bestClear, bestAny };
+      if (!clear) continue;
+      const open = direction && direction.dist >= sightlineDist * 0.8;
+      if (open && !bestOpen) bestOpen = candidate;
+      if (open && isSupported(collider, x, ground, z)) return { found: candidate, bestOpen, bestClear, bestAny };
     }
   }
-  return { found: null, bestClear, bestAny };
+  return { found: null, bestOpen, bestClear, bestAny };
 }
 
 // preferredXZ (optional): the scene's authored camera "target" from its
@@ -104,6 +148,7 @@ export function findSpawnPoint(collider, bounds, flatGroundY, preferredXZ) {
   attempts.push(ringSearch(collider, cx, cz, bounds));
 
   for (const a of attempts) if (a.found) return a.found;
+  for (const a of attempts) if (a.bestOpen) return a.bestOpen;
   for (const a of attempts) if (a.bestClear) return a.bestClear;
   for (const a of attempts) if (a.bestAny) return a.bestAny;
   return { x: cx, y: flatGroundY + 0.05, z: cz };

@@ -316,7 +316,11 @@ async function startHike(entry) {
 
     spawn = findSpawnPoint(currentCollider, bounds, flatY, currentAuthoredTarget);
     walker.spawnAt(spawn.x, spawn.y, spawn.z);
-    input.yaw = 0;
+    // Facing a hardcoded yaw=0 regardless of terrain meant plenty of spawns
+    // stared directly into a rock/bush even when open space existed right
+    // beside them — spawn.yaw (when the finder found one) points at
+    // whichever direction actually had room to see something.
+    input.yaw = spawn.yaw ?? 0;
     input.pitch = 0;
 
     autoAdvance.reset(bounds, currentCollider);

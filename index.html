@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Splat Hike</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+
+<!-- ============ Scene library / main menu ============ -->
+<div id="menu" class="screen">
+  <div class="panel menu-panel">
+    <h1>Splat Hike <span class="sub">a walking simulator for 3D Gaussian Splat scenes</span></h1>
+
+    <div class="menu-toolbar">
+      <button id="addSceneBtn" class="btn primary">+ Add scene</button>
+      <button id="fileBtn" class="btn">Load local file…</button>
+      <input type="file" id="fileInput" accept=".ply,.compressed.ply,.sog,.splat,.meta.json,.lod-meta.json" hidden>
+    </div>
+
+    <div id="sceneList" class="scene-list"></div>
+
+    <p class="hint">Click a scene to walk it. Scenes you add are saved in this browser (localStorage) — nothing is uploaded anywhere.</p>
+  </div>
+</div>
+
+<!-- ============ Add scene dialog ============ -->
+<div id="addDialog" class="screen dialog-overlay" hidden>
+  <div class="panel dialog-panel">
+    <h2>Add a scene</h2>
+    <label class="field">
+      <span>Superspl.at share link or direct splat URL (.ply / .compressed.ply / .sog / .meta.json)</span>
+      <input type="text" id="addUrlInput" placeholder="https://superspl.at/scene/xxxxxxxx">
+    </label>
+    <label class="field">
+      <span>Name</span>
+      <input type="text" id="addNameInput" placeholder="My scene">
+    </label>
+    <div class="field-row">
+      <label class="field small"><span>Rotate Y (°)</span><input type="number" id="addRotY" value="180" step="15"></label>
+      <label class="field small"><span>Scale</span><input type="number" id="addScale" value="1" step="0.1" min="0.01"></label>
+    </div>
+    <div class="dialog-actions">
+      <button id="addCancelBtn" class="btn">Cancel</button>
+      <button id="addConfirmBtn" class="btn primary">Add scene</button>
+    </div>
+    <p id="addStatus" class="load-status"></p>
+  </div>
+</div>
+
+<!-- ============ Loading overlay ============ -->
+<div id="loading" class="screen loading-screen" hidden>
+  <div class="loading-inner">
+    <div class="spinner"></div>
+    <div id="loadingText">Loading scene…</div>
+  </div>
+</div>
+
+<!-- ============ In-hike HUD ============ -->
+<div id="hud" hidden>
+  <div id="crosshair"><div class="dot"></div></div>
+
+  <div class="hud-corner top-left">
+    <div id="sceneName" class="scene-name"></div>
+  </div>
+
+  <div class="hud-corner top-right">
+    <button id="settingsToggle" class="icon-btn" title="Settings">⚙</button>
+    <button id="muteToggle" class="icon-btn" title="Mute">🔊</button>
+    <button id="menuToggle" class="icon-btn" title="Scene library">☰</button>
+  </div>
+
+  <div id="nextSceneHint" class="next-scene-hint" hidden>
+    <span>Trail thinning out — next scene ahead</span>
+    <button id="nextSceneBtn" class="btn primary small">Continue ▶</button>
+  </div>
+
+  <div class="hud-corner bottom-left">
+    <div class="controls-hint">
+      <span class="hint-desktop">WASD move · Mouse look · Shift sprint · Space jump · Esc release mouse</span>
+    </div>
+  </div>
+
+  <div id="clickToLook" class="click-to-look">
+    <span>Click to walk</span>
+  </div>
+</div>
+
+<!-- ============ Settings panel ============ -->
+<div id="settingsPanel" class="screen dialog-overlay" hidden>
+  <div class="panel dialog-panel settings-panel-inner">
+    <div class="dialog-header">
+      <h2>Settings</h2>
+      <button id="closeSettingsBtn" class="btn-icon">✕</button>
+    </div>
+
+    <div class="settings-grid">
+      <h3>World</h3>
+      <label class="field row"><span>Fog density</span><input type="range" id="fogDensity" min="0" max="1" step="0.01"></label>
+      <label class="field row"><span>Fog color</span><input type="color" id="fogColor"></label>
+      <label class="field row"><span>Sky top color</span><input type="color" id="skyTop"></label>
+      <label class="field row"><span>Sky horizon color</span><input type="color" id="skyHorizon"></label>
+
+      <h3>Movement</h3>
+      <label class="field row"><span>Walk speed</span><input type="range" id="walkSpeed" min="0.5" max="6" step="0.1"></label>
+      <label class="field row"><span>Mouse sensitivity</span><input type="range" id="mouseSens" min="0.05" max="1" step="0.01"></label>
+      <label class="field row"><span>Voxel size (collision)</span><input type="range" id="voxelSize" min="0.03" max="0.5" step="0.01"></label>
+
+      <h3>Quality</h3>
+      <label class="field row"><span>Detail level</span>
+        <select id="qualitySelect">
+          <option value="high">Highest fidelity (may be slower)</option>
+          <option value="balanced" selected>Balanced</option>
+          <option value="perf">Performance</option>
+        </select>
+      </label>
+
+      <h3>Audio</h3>
+      <label class="field row"><span>Ambient volume</span><input type="range" id="ambientVolume" min="0" max="1" step="0.01"></label>
+
+      <h3>Auto-advance</h3>
+      <label class="field row"><span>Enable auto-advance</span><input type="checkbox" id="autoAdvanceEnabled" checked></label>
+      <label class="field row"><span>Sensitivity</span><input type="range" id="autoAdvanceSensitivity" min="0.1" max="1" step="0.05"></label>
+    </div>
+  </div>
+</div>
+
+<div id="crashToast" class="crash-toast" hidden></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "playcanvas": "https://cdn.jsdelivr.net/npm/playcanvas@2.21.0/+esm"
+  }
+}
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

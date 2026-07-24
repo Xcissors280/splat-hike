@@ -154,7 +154,7 @@ h3:first-child { margin-top: 0; }
 }
 #crosshair .dot { width: 100%; height: 100%; border-radius: 50%; background: rgba(255,255,255,0.75); box-shadow: 0 0 4px rgba(0,0,0,0.6); }
 
-.hud-corner { position: absolute; display: flex; gap: 8px; align-items: center; pointer-events: auto; }
+.hud-corner { position: absolute; display: flex; gap: 8px; align-items: center; pointer-events: auto; z-index: 2; }
 .top-left { top: 16px; left: 16px; }
 .top-right { top: 16px; right: 16px; }
 .bottom-left { bottom: 16px; left: 16px; }
@@ -183,6 +183,7 @@ h3:first-child { margin-top: 0; }
   display: flex; align-items: center; gap: 12px; font-size: 13px;
   pointer-events: auto;
   animation: fadeIn 0.4s ease;
+  z-index: 2;
 }
 .next-scene-hint[hidden] { display: none; }
 @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
@@ -190,6 +191,7 @@ h3:first-child { margin-top: 0; }
 .click-to-look {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
   background: rgba(0,0,0,0.25); font-size: 15px; pointer-events: auto; cursor: pointer;
+  z-index: 1;
 }
 .click-to-look span { background: rgba(0,0,0,0.5); padding: 10px 20px; border-radius: 8px; }
 .click-to-look.hidden { display: none; }

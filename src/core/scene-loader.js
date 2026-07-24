@@ -129,9 +129,15 @@ export function createSceneManager(app) {
     }
   }
 
+  // rotX/rotZ correct for scans that weren't reconstructed level — these
+  // are uncalibrated community scans, and while rotY (yaw) is nearly always
+  // needed (SuperSplat's own default export convention), a genuine pitch/
+  // roll tilt in the source reconstruction is also possible and yaw alone
+  // can't fix it. No default nonzero value here (unlike rotY) since a
+  // level scan is the common case and most scenes don't need this.
   function applyTransform(entry) {
     if (!splatEntity) return;
-    splatEntity.setLocalEulerAngles(0, entry.rotY ?? 180, 0);
+    splatEntity.setLocalEulerAngles(entry.rotX ?? 0, entry.rotY ?? 180, entry.rotZ ?? 0);
     const s = entry.scale ?? 1;
     splatEntity.setLocalScale(s, s, s);
     splatEntity.setLocalPosition(0, 0, 0);
@@ -253,6 +259,7 @@ export function createSceneManager(app) {
     load,
     loadFromFile,
     applyQuality,
+    applyTransform,
     unload,
   };
 }

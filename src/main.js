@@ -171,7 +171,37 @@ el('ambientVolume').addEventListener('input', (e) => {
 el('autoAdvanceEnabled').addEventListener('change', (e) => settings.set('autoAdvanceEnabled', e.target.checked));
 el('autoAdvanceSensitivity').addEventListener('input', (e) => settings.set('autoAdvanceSensitivity', parseFloat(e.target.value)));
 
-el('settingsToggle').addEventListener('click', () => { settingsPanel.hidden = !settingsPanel.hidden; });
+el('settingsToggle').addEventListener('click', () => {
+  settingsPanel.hidden = !settingsPanel.hidden;
+  if (!settingsPanel.hidden && currentEntry) {
+    el('rotX').value = currentEntry.rotX ?? 0;
+    el('rotY').value = currentEntry.rotY ?? 180;
+    el('rotZ').value = currentEntry.rotZ ?? 0;
+  }
+});
+
+// Live visual feedback while dragging (cheap: just re-orients the entity),
+// full recompute (collision, bounds, fog/LOD scale, respawn) only once the
+// slider is released — rebuilding the voxel collider on every drag tick
+// would stutter badly on a multi-million-point scan.
+function previewOrientation() {
+  if (!currentEntry) return;
+  currentEntry.rotX = parseFloat(el('rotX').value);
+  currentEntry.rotY = parseFloat(el('rotY').value);
+  currentEntry.rotZ = parseFloat(el('rotZ').value);
+  sceneManager.applyTransform(currentEntry);
+}
+function commitOrientation() {
+  if (!currentEntry) return;
+  previewOrientation();
+  reorientCurrentScene();
+}
+el('rotX').addEventListener('input', previewOrientation);
+el('rotY').addEventListener('input', previewOrientation);
+el('rotZ').addEventListener('input', previewOrientation);
+el('rotX').addEventListener('change', commitOrientation);
+el('rotY').addEventListener('change', commitOrientation);
+el('rotZ').addEventListener('change', commitOrientation);
 el('closeSettingsBtn').addEventListener('click', () => { settingsPanel.hidden = true; });
 el('menuToggle').addEventListener('click', () => { endHike(); });
 el('muteToggle').addEventListener('click', () => {
@@ -198,6 +228,28 @@ function rebuildCollider() {
 function boundsFromCollider(collider) {
   const b = collider.bounds;
   return { minX: b.minX, maxX: b.maxX, minY: b.minY, maxY: b.maxY, minZ: b.minZ, maxZ: b.maxZ };
+}
+
+// Called after a manual tilt/turn adjustment (settings → Scene orientation)
+// changes the entity's transform out from under everything derived from
+// it — collision, bounds, the fog/LOD scale reference, and where the
+// player is standing all need to be redone. Mirrors the post-load section
+// of startHike(). Note: the authored-target spawn hint isn't re-derived
+// here (it was computed once against the original orientation) — a manual
+// retilt is a deliberate one-off correction, and fly mode covers repositioning
+// afterward if the fallback bbox-center spawn isn't ideal.
+function reorientCurrentScene() {
+  if (currentKind !== 'lod-meta') rebuildCollider();
+  const bounds = currentCollider ? boundsFromCollider(currentCollider) : currentBounds;
+  currentBounds = bounds;
+  currentSceneScale = Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, 5);
+  applyFogForScene();
+  if (sceneManager.entity?.gsplat) {
+    sceneManager.entity.gsplat.lodBaseDistance = currentSceneScale * 0.05;
+    sceneManager.entity.gsplat.lodMultiplier = 2.2;
+  }
+  const spawn = findSpawnPoint(currentCollider, bounds, walker.flatGroundY, null);
+  walker.spawnAt(spawn.x, spawn.y, spawn.z);
 }
 
 async function startHike(entry) {

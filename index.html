@@ -109,6 +109,12 @@
       <label class="field row"><span>Mouse sensitivity</span><input type="range" id="mouseSens" min="0.05" max="1" step="0.01"></label>
       <label class="field row"><span>Voxel size (collision)</span><input type="range" id="voxelSize" min="0.03" max="0.5" step="0.01"></label>
 
+      <h3>Scene orientation</h3>
+      <p class="hint" style="margin:0 0 10px;">These are uncalibrated community scans — if one looks tilted or wrong-side-up, nudge it here. Rebuilds collision on release.</p>
+      <label class="field row"><span>Turn (Y)</span><input type="range" id="rotY" min="0" max="360" step="5"></label>
+      <label class="field row"><span>Tilt front/back (X)</span><input type="range" id="rotX" min="-90" max="90" step="1"></label>
+      <label class="field row"><span>Tilt side/side (Z)</span><input type="range" id="rotZ" min="-90" max="90" step="1"></label>
+
       <h3>Quality</h3>
       <label class="field row"><span>Detail level</span>
         <select id="qualitySelect">

@@ -1,7 +1,12 @@
 const KEY = 'splathike.settings.v1';
 
 const DEFAULTS = {
-  fogDensity: 0.045,
+  // Relative amount (0-1), not a raw exp2 density — community scans have
+  // wildly inconsistent coordinate scale (some scenes span ~30 units,
+  // others ~300 for a similarly-sized area), so a fixed absolute density
+  // looks totally different per scene. main.js scales this by the actual
+  // measured scene size before applying it. See applyFogForScene().
+  fogDensity: 0.35,
   fogColor: '#b9c8bd',
   skyTop: '#4f7fb8',
   skyHorizon: '#cfd9c8',

@@ -162,6 +162,11 @@ h3:first-child { margin-top: 0; }
 .scene-name {
   background: rgba(0,0,0,0.4); padding: 6px 12px; border-radius: 8px; font-size: 13px;
 }
+.fly-badge {
+  background: rgba(90,60,10,0.55); padding: 6px 12px; border-radius: 8px; font-size: 12px;
+  display: block;
+}
+.fly-badge[hidden] { display: none; }
 .icon-btn {
   background: rgba(0,0,0,0.4); border: none; color: var(--text); width: 34px; height: 34px;
   border-radius: 8px; font-size: 15px; cursor: pointer;

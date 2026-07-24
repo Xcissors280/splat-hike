@@ -26,7 +26,19 @@ let currentIndex = -1;
 let inHike = false;
 
 sky.setColors(settings.get('skyTop'), settings.get('skyHorizon'));
-applyFog(app, { color: settings.get('fogColor'), density: settings.get('fogDensity') });
+let currentSceneScale = 30; // updated per-scene once bounds are known; reasonable default for the menu background
+applyFogForScene();
+
+// Fog density is stored as a 0-1 "relative amount", not a raw exp2 density
+// — see settings-store.js. Scaling it by the scene's own measured extent
+// means the same slider position looks similar regardless of whether this
+// particular scan's coordinates happen to be in meters, or some 10x/100x
+// arbitrary reconstruction unit.
+function applyFogForScene() {
+  const relative = settings.get('fogDensity');
+  const density = (relative * 3) / currentSceneScale;
+  applyFog(app, { color: settings.get('fogColor'), density });
+}
 
 // ------------------------------------------------------------------- DOM
 const el = (id) => document.getElementById(id);
@@ -128,11 +140,11 @@ initSettingsUI();
 
 el('fogDensity').addEventListener('input', (e) => {
   settings.set('fogDensity', parseFloat(e.target.value));
-  applyFog(app, { color: settings.get('fogColor'), density: settings.get('fogDensity') });
+  applyFogForScene();
 });
 el('fogColor').addEventListener('input', (e) => {
   settings.set('fogColor', e.target.value);
-  applyFog(app, { color: settings.get('fogColor'), density: settings.get('fogDensity') });
+  applyFogForScene();
 });
 el('skyTop').addEventListener('input', (e) => {
   settings.set('skyTop', e.target.value);
@@ -235,6 +247,21 @@ async function startHike(entry) {
     currentBounds = bounds;
     currentAuthoredTarget = result.authoredTarget;
 
+    // See applyFogForScene()/settings-store.js — same reasoning applies to
+    // the gsplat LOD distance thresholds, which are also absolute-unit
+    // (PlayCanvas defaults: full detail only within 5 units of the camera).
+    // On a scene whose coordinates are 10-100x "normal" scale, 5 units is
+    // nowhere near the camera even when visually right up close, so it
+    // serves coarse detail immediately. Scaling the threshold by the
+    // scene's own measured size keeps "close up" meaning the same thing
+    // regardless of the reconstruction's arbitrary unit scale.
+    currentSceneScale = Math.max(bounds.maxX - bounds.minX, bounds.maxZ - bounds.minZ, 5);
+    applyFogForScene();
+    if (result.entity?.gsplat) {
+      result.entity.gsplat.lodBaseDistance = currentSceneScale * 0.05;
+      result.entity.gsplat.lodMultiplier = 2.2;
+    }
+
     spawn = findSpawnPoint(currentCollider, bounds, flatY, currentAuthoredTarget);
     walker.spawnAt(spawn.x, spawn.y, spawn.z);
     input.yaw = 0;
@@ -287,19 +314,31 @@ function goToNextScene() {
 input.onLockChange((locked) => {
   clickToLook.classList.toggle('hidden', locked);
 });
+// The overlay sits on top of the canvas (so its "Click to walk" prompt is
+// visible), which means clicks on it never reach the canvas underneath —
+// it needs its own listener or pointer lock never actually engages.
+clickToLook.addEventListener('click', () => input.requestLock());
 
 // --------------------------------------------------------------- main loop
+const flyBadge = el('flyBadge');
+let wasFlying = false;
+
 app.on('update', (dt) => {
   if (!inHike) return;
   const inp = input.read();
   walker.update(dt, inp);
+
+  if (walker.flying !== wasFlying) {
+    wasFlying = walker.flying;
+    flyBadge.hidden = !wasFlying;
+  }
 
   const eye = walker.eyePosition;
   camera.setPosition(eye.x, eye.y, eye.z);
   camera.setEulerAngles(inp.pitch, inp.yaw, 0);
   sky.follow(camera);
 
-  if (autoAdvance.update(walker)) {
+  if (!walker.flying && autoAdvance.update(walker)) {
     nextSceneHint.hidden = false;
     setTimeout(() => { if (!nextSceneHint.hidden) goToNextScene(); }, 6000);
   }

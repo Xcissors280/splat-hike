@@ -9,6 +9,8 @@ const GROUND_FRICTION = 10;
 const MAX_FALL_TIME = 1.6; // seconds ungrounded before we assume a hole/void and respawn
 const SUBSTEP = 1 / 120;
 const DEG2RAD = Math.PI / 180;
+const FLY_SPEED = 6;
+const FLY_SPRINT_MULT = 3;
 
 // Sample points around the capsule's circumference used for horizontal
 // collision + step-up tests (8-way ring at two heights: near the feet and
@@ -34,6 +36,10 @@ export class WalkController {
     this.onFellThrough = null;
     this.distanceWalked = 0;
     this._lastXZ = null;
+    // Freecam/reposition mode — no gravity, no collision, full 3D movement.
+    // A manual escape hatch for bad spawns or scenes with patchy collision,
+    // toggled with F (see core/input.js).
+    this.flying = false;
   }
 
   setCollider(collider) { this.collider = collider; }
@@ -44,6 +50,7 @@ export class WalkController {
     this.vel.x = 0; this.vel.y = 0; this.vel.z = 0;
     this.grounded = true;
     this.airTime = 0;
+    this.flying = false;
     this.lastGrounded = { x, y, z };
     this._lastXZ = { x, z };
     this.distanceWalked = 0;
@@ -74,6 +81,20 @@ export class WalkController {
   }
 
   update(dt, input) {
+    if (input.flyToggle) {
+      this.flying = !this.flying;
+      if (this.flying) { this.vel.x = 0; this.vel.y = 0; this.vel.z = 0; }
+      // Turning fly OFF does nothing special — gravity/ground-search just
+      // takes back over next substep from wherever you let go, and the
+      // existing fall-through safety net (onFellThrough) already handles
+      // "let go somewhere with no ground below" by finding a fresh spawn.
+    }
+
+    if (this.flying) {
+      this._updateFly(dt, input);
+      return;
+    }
+
     const speed = this.settingsStore.get('walkSpeed') * (input.sprint ? 1.7 : 1);
     const yawRad = input.yaw * DEG2RAD;
     const fx = -Math.sin(yawRad), fz = -Math.cos(yawRad);
@@ -91,6 +112,30 @@ export class WalkController {
       remaining -= h;
     }
     input.jump = false;
+  }
+
+  // Free-flight: full 3D direction (pitch included, unlike grounded walk),
+  // no gravity, no collision — pure kinematic movement for repositioning.
+  _updateFly(dt, input) {
+    const speed = FLY_SPEED * (input.sprint ? FLY_SPRINT_MULT : 1);
+    const yawRad = input.yaw * DEG2RAD;
+    const pitchRad = input.pitch * DEG2RAD;
+    const cosPitch = Math.cos(pitchRad);
+    const fx = -Math.sin(yawRad) * cosPitch, fy = Math.sin(pitchRad), fz = -Math.cos(yawRad) * cosPitch;
+    const rx = Math.cos(yawRad), rz = -Math.sin(yawRad);
+
+    let wx = fx * input.forward + rx * input.right;
+    let wy = fy * input.forward + (input.up || 0);
+    let wz = fz * input.forward + rz * input.right;
+    const len = Math.hypot(wx, wy, wz);
+    if (len > 0) { wx /= len; wy /= len; wz /= len; }
+
+    this.pos.x += wx * speed * dt;
+    this.pos.y += wy * speed * dt;
+    this.pos.z += wz * speed * dt;
+    this.vel.x = 0; this.vel.y = 0; this.vel.z = 0;
+    this.grounded = false;
+    this.airTime = 0;
   }
 
   _substep(dt, wishX, wishZ, speed, jump) {

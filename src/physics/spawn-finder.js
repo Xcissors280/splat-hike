@@ -71,7 +71,7 @@ function ringSearch(collider, cx, cz, bounds) {
     for (const [ox, oz] of points) {
       const x = cx + ox * ringStep;
       const z = cz + oz * ringStep;
-      const ground = collider.groundHeight(x, searchFrom, z, fullDrop);
+      const ground = collider.robustGroundHeight(x, searchFrom, z, fullDrop);
       if (ground === null) continue;
       const candidate = { x, y: ground + 0.05, z };
       if (!bestAny) bestAny = candidate;

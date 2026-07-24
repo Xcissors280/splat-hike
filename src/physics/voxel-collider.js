@@ -101,7 +101,15 @@ export function buildVoxelCollider(splatEntity, voxelSize, onProgress) {
   function keyFor(wx, wy, wz) {
     return cellKey(Math.floor(wx / size), Math.floor(wy / size), Math.floor(wz / size));
   }
+  // Real-time collision (used every physics substep, always over a small
+  // local search range) uses ANY point in a cell as solid — the outlier
+  // problem only bites over the huge full-column searches spawn-finding
+  // does, so gating routine walking collision behind MIN_DENSITY just
+  // means most of the scene silently has no collision at all.
   function isSolid(key) {
+    return key !== null && cells.has(key);
+  }
+  function isRobustSolid(key) {
     return key !== null && (cells.get(key) || 0) >= MIN_DENSITY;
   }
 
@@ -113,7 +121,8 @@ export function buildVoxelCollider(splatEntity, voxelSize, onProgress) {
       return isSolid(keyFor(wx, wy, wz));
     },
     // Highest solid cell at/under (wx, wz), searching down from `fromY`
-    // by at most `maxDrop` — used for ground snapping / step-up.
+    // by at most `maxDrop` — used for ground snapping / step-up during
+    // normal walking (small maxDrop, so outliers are never in range).
     groundHeight(wx, fromY, wz, maxDrop) {
       const cx = Math.floor(wx / size);
       const cz = Math.floor(wz / size);
@@ -121,6 +130,19 @@ export function buildVoxelCollider(splatEntity, voxelSize, onProgress) {
       const minCell = Math.floor((fromY - maxDrop) / size);
       for (let cy = startCell; cy >= minCell; cy--) {
         if (isSolid(cellKey(cx, cy, cz))) return (cy + 1) * size;
+      }
+      return null;
+    },
+    // Same search, but outlier-filtered — for spawn-finding only, which
+    // searches the *entire* vertical column and would otherwise happily
+    // land on a single stray reflection-noise splat far from real ground.
+    robustGroundHeight(wx, fromY, wz, maxDrop) {
+      const cx = Math.floor(wx / size);
+      const cz = Math.floor(wz / size);
+      const startCell = Math.floor(fromY / size);
+      const minCell = Math.floor((fromY - maxDrop) / size);
+      for (let cy = startCell; cy >= minCell; cy--) {
+        if (isRobustSolid(cellKey(cx, cy, cz))) return (cy + 1) * size;
       }
       return null;
     },

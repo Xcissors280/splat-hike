@@ -391,7 +391,7 @@ app.on('update', (dt) => {
 
   const eye = walker.eyePosition;
   camera.setPosition(eye.x, eye.y, eye.z);
-  camera.setEulerAngles(inp.pitch, inp.yaw, 0);
+  camera.setEulerAngles(inp.pitch, inp.yaw);
   sky.follow(camera);
 
   if (!walker.flying && autoAdvance.update(walker)) {

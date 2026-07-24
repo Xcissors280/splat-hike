@@ -19,17 +19,39 @@ export function createApp(canvas) {
   return app;
 }
 
+// A single entity with setEulerAngles(pitch, yaw, 0) does NOT behave like a
+// standard FPS camera: PlayCanvas composes Euler angles as intrinsic X-then-
+// Y-then-Z, meaning pitch is applied first (in world space) and yaw is then
+// applied around the *already-pitched* frame's Y-axis — not world-up. Any
+// time both are simultaneously nonzero (i.e. normal play: looking up/down
+// while turning), this introduces unwanted roll — verified directly: pitch
+// 60°/yaw 90° combined rotates world-up to (0.87, 0.5, 0), nowhere near
+// (0,1,0). At combinations of pitch and yaw this can roll the view upside
+// down entirely. The standard fix is a two-node rig: an outer node that only
+// ever yaws around world Y, with a child that only ever pitches around its
+// own local X — since the child's local X is inherited correctly from the
+// parent's yaw, pitching it can never introduce roll.
 export function createCamera(app) {
-  const camera = new Entity('Camera');
-  camera.addComponent('camera', {
+  const yawNode = new Entity('CameraYaw');
+  const pitchNode = new Entity('Camera');
+  pitchNode.addComponent('camera', {
     fov: 68,
     nearClip: 0.03,
     farClip: 4000,
     clearColor: new Color(0.55, 0.65, 0.7),
   });
-  camera.setLocalPosition(0, 1.7, 0);
-  app.root.addChild(camera);
-  return camera;
+  yawNode.addChild(pitchNode);
+  app.root.addChild(yawNode);
+
+  return {
+    entity: pitchNode,
+    setPosition(x, y, z) { yawNode.setPosition(x, y, z); },
+    getPosition() { return yawNode.getPosition(); },
+    setEulerAngles(pitch, yaw) {
+      yawNode.setLocalEulerAngles(0, yaw, 0);
+      pitchNode.setLocalEulerAngles(pitch, 0, 0);
+    },
+  };
 }
 
 // A vertical-gradient texture (top / horizon / fog-tinted bottom) painted
